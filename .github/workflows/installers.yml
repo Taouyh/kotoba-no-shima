@@ -4,12 +4,19 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      target:
+        description: Installer to build
+        type: choice
+        default: all
+        options: [all, windows, android]
 
 permissions:
   contents: read
 
 jobs:
   windows:
+    if: github.event_name != 'workflow_dispatch' || inputs.target != 'android'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,6 +52,7 @@ jobs:
             src-tauri/target/release/kotoba-no-shima.exe
           if-no-files-found: error
   android:
+    if: github.event_name != 'workflow_dispatch' || inputs.target != 'windows'
     runs-on: ubuntu-latest
     env:
       ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/android-release.jks
@@ -62,6 +70,8 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
       - name: Restore signing key
         env:
           KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
