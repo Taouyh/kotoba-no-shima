@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ことばの島</string>
+    <string name="title_activity_main">ことばの島</string>
+    <string name="package_name">io.github.taouyh.kotobashima</string>
+    <string name="custom_url_scheme">io.github.taouyh.kotobashima</string>
+</resources>

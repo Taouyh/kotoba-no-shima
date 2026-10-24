@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-window",
+  "description": "Local learning and user-initiated JSON backup export",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:allow-save",
+    "fs:allow-write-text-file",
+    { "identifier": "opener:allow-open-url", "allow": [{ "url": "https://*" }] }
+  ]
+}
