@@ -301,7 +301,7 @@ export default function App() {
           </span>
           <span>
             <b lang="ja">ことばの島</b>
-            <small>KANA ISLAND</small>
+            <small>KOTOBA NO SHIMA</small>
           </span>
         </a>
         <div className="sidebar-label">我的学习空间</div>

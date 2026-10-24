@@ -4,6 +4,7 @@
 - Windows x64 安装版和 Android APK，桌面与应用列表均显示日语名「ことばの島」。
 - 每位新玩家从空进度开始，不含作者的游戏记录。
 - 修复「五月」等多音词的合成语音输入；安卓使用系统文字转语音。
+- Windows 采用系统 WebView2、关闭 GPU 加速并压缩安装包；本机地图静置检查专用内存约 116 MB，具体随设备与场景变化。
 
 在线版：https://taouyh.github.io/kotoba-no-shima/
 
