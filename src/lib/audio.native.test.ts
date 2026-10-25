@@ -1,12 +1,13 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import {
   getJapaneseVoices,
+  getAvailableVoices,
   initializeNativeAudio,
   playJapanese,
   stopAudio,
 } from "./audio";
 
-vi.mock("./platform", () => ({ isAndroid: true }));
+vi.mock("./platform", () => ({ isAndroid: true, isNative: true }));
 const native = vi.hoisted(() => ({
   getSupportedVoices: vi.fn(),
   speak: vi.fn(),
@@ -28,7 +29,10 @@ beforeEach(() => {
     ],
   });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  stopAudio();
+  vi.unstubAllGlobals();
+});
 
 describe("Android system speech", () => {
   it("loads Japanese voices without the browser speech API and keeps the native voice index", async () => {
@@ -49,10 +53,21 @@ describe("Android system speech", () => {
     stopAudio();
     expect(native.stop).toHaveBeenCalled();
   });
-  it("disables listening when the device has no Japanese voice", async () => {
+  it("keeps bundled audio playable when Android has no Japanese voice", async () => {
+    const play = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal(
+      "Audio",
+      class {
+        pause = vi.fn();
+        play = play;
+        constructor(public src: string) {}
+      },
+    );
     native.getSupportedVoices.mockResolvedValue({ voices: [] });
     await initializeNativeAudio();
-    expect(playJapanese("が", "h-が")).toBe(false);
+    expect(getAvailableVoices()[0].voiceURI).toBe("kotoba:bundled-ja");
+    expect(playJapanese("が", "h-が")).toBe(true);
+    expect(play).toHaveBeenCalledOnce();
     expect(native.speak).not.toHaveBeenCalled();
   });
 });

@@ -114,4 +114,4 @@ jobs:
           cd release-files
           sha256sum *.exe *.apk > SHA256SUMS.txt
           cd ..
-          gh release create "$GITHUB_REF_NAME" release-files/* --verify-tag --title "ことばの島 $GITHUB_REF_NAME" --notes-file docs/RELEASE_v0.3.0.md --prerelease
+          gh release create "$GITHUB_REF_NAME" release-files/* --verify-tag --title "ことばの島 $GITHUB_REF_NAME" --notes-file "docs/RELEASE_$GITHUB_REF_NAME.md" --prerelease

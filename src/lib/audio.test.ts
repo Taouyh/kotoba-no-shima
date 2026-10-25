@@ -1,13 +1,39 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { playJapanese, recordings, stopAudio } from "./audio";
+import {
+  BUNDLED_VOICE_URI,
+  getAvailableVoices,
+  playJapanese,
+  recordings,
+  stopAudio,
+} from "./audio";
 
 const speak = vi.fn();
 const cancel = vi.fn();
 const voice = { lang: "ja-JP", voiceURI: "test-ja" };
+const originalMayRecording = recordings["kanji-五"];
+const audioClips: {
+  src: string;
+  onended?: (() => void) | null;
+  onerror?: (() => void) | null;
+  pause: ReturnType<typeof vi.fn>;
+}[] = [];
+const play = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubGlobal("window", { speechSynthesis: {} });
+  audioClips.length = 0;
+  play.mockResolvedValue(undefined);
+  vi.stubGlobal("window", { speechSynthesis: {}, dispatchEvent: vi.fn() });
+  vi.stubGlobal(
+    "Audio",
+    class {
+      pause = vi.fn();
+      play = play;
+      constructor(public src: string) {
+        audioClips.push(this);
+      }
+    },
+  );
   vi.stubGlobal("speechSynthesis", {
     getVoices: () => [voice],
     speak,
@@ -23,7 +49,7 @@ beforeEach(() => {
 
 afterEach(() => {
   stopAudio();
-  delete recordings["kanji-五"];
+  recordings["kanji-五"] = originalMayRecording;
   vi.unstubAllGlobals();
 });
 
@@ -49,26 +75,51 @@ describe("Japanese speech input", () => {
     });
   });
 
-  it("returns false when no Japanese voice is available", () => {
+  it("returns false for unknown future content without any sound source", () => {
     speechSynthesis.getVoices = () => [];
-    expect(playJapanese("五月", "kanji-五")).toBe(false);
+    expect(playJapanese("未知の単語", "future-item")).toBe(false);
     expect(speak).not.toHaveBeenCalled();
   });
 
-  it("still prefers a reviewed recording over synthesized readings", () => {
-    const play = vi.fn().mockResolvedValue(undefined);
-    const pause = vi.fn();
-    vi.stubGlobal(
-      "Audio",
-      class {
-        play = play;
-        pause = pause;
-        constructor(public src: string) {}
-      },
-    );
+  it("uses the bundled clip by default even if a device voice exists", () => {
     recordings["kanji-五"] = "audio/gogatsu.mp3";
     expect(playJapanese("五月", "kanji-五")).toBe(true);
     expect(play).toHaveBeenCalledOnce();
     expect(speak).not.toHaveBeenCalled();
+  });
+
+  it("offers and plays built-in Japanese when the device has no voices", () => {
+    speechSynthesis.getVoices = () => [];
+    expect(getAvailableVoices()[0].voiceURI).toBe(BUNDLED_VOICE_URI);
+    expect(playJapanese("五月", "kanji-五")).toBe(true);
+    expect(audioClips[0].src).toContain(originalMayRecording);
+    expect(speak).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the built-in clip if a selected device voice fails", () => {
+    expect(playJapanese("五月", "kanji-五", "test-ja")).toBe(true);
+    speak.mock.calls[0][0].onerror({ error: "synthesis-failed" });
+    expect(audioClips).toHaveLength(1);
+    expect(audioClips[0].src).toContain(originalMayRecording);
+  });
+
+  it("stops old clips and ignores their late playback errors", async () => {
+    let reject!: (error: Error) => void;
+    play.mockImplementationOnce(
+      () =>
+        new Promise((_, fail) => {
+          reject = fail;
+        }),
+    );
+    const onEnd = vi.fn();
+    playJapanese("五月", "kanji-五", "", onEnd);
+    const old = audioClips[0];
+    playJapanese("が", "h-が");
+    expect(old.pause).toHaveBeenCalled();
+    expect(old.onended).toBeNull();
+    reject(new Error("interrupted"));
+    await Promise.resolve();
+    expect(window.dispatchEvent).not.toHaveBeenCalled();
+    expect(onEnd).not.toHaveBeenCalled();
   });
 });

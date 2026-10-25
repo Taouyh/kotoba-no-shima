@@ -265,7 +265,7 @@ test("pitch examples can be completed and display labelled illustrative tones", 
   ).toBeVisible();
 });
 
-test("a device without Japanese voices disables listening and explains the limitation", async ({
+test("a device without Japanese voices can still enter bundled listening practice", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -274,9 +274,9 @@ test("a device without Japanese voices disables listening and explains the limit
   await page.goto("/");
   await page.locator(".chapter-card.orange").click();
   await expect(
-    page.getByRole("button", { name: "听音辨认 · 需要设备日语声音" }),
-  ).toBeDisabled();
-  await page.getByRole("button", { name: "开始看字回忆" }).click();
+    page.getByRole("button", { name: "听音辨认 · 日语参考音" }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "听音辨认 · 日语参考音" }).click();
   await expect(
     page.getByRole("heading", { name: "先认识，再试着回忆。" }),
   ).toBeVisible();

@@ -1,5 +1,16 @@
-import { entryById } from "../data/catalog";
-import { isAndroid } from "./platform";
+import audioManifest from "../data/audio-manifest.json";
+import { isAndroid, isNative } from "./platform";
+import { speechTextForItem } from "./speech-text";
+
+export const BUNDLED_VOICE_URI = "kotoba:bundled-ja";
+export const recordings: Record<string, string> = { ...audioManifest.files };
+const bundledVoice: SpeechSynthesisVoice = {
+  voiceURI: BUNDLED_VOICE_URI,
+  name: "游戏内置日语音频",
+  lang: "ja-JP",
+  localService: true,
+  default: true,
+};
 
 let nativeSpeech:
   typeof import("@capacitor-community/text-to-speech").TextToSpeech | undefined;
@@ -14,17 +25,12 @@ export async function initializeNativeAudio() {
     nativeVoices = (await TextToSpeech.getSupportedVoices()).voices;
     window.dispatchEvent(new Event("kana-voices-changed"));
   } catch {
-    window.dispatchEvent(
-      new CustomEvent("kana-audio-error", {
-        detail: "未能启动系统朗读。请检查安卓的文字转语音设置和日语语音包。",
-      }),
-    );
+    // System TTS is optional. Bundled clips remain available without it.
+    nativeVoices = [];
+    window.dispatchEvent(new Event("kana-voices-changed"));
   }
 }
 
-// Replace / supplement browser speech with reviewed, licensed recordings here.
-// Paths are relative to the app base, so a GitHub Pages project subpath also works.
-export const recordings: Record<string, string> = {};
 export const getJapaneseVoices = () =>
   isAndroid
     ? nativeVoices.filter((voice) => /^ja(?:-|_)/i.test(voice.lang))
@@ -33,12 +39,17 @@ export const getJapaneseVoices = () =>
           .getVoices()
           .filter((voice) => /^ja(?:-|_)/i.test(voice.lang))
       : [];
+export const getAvailableVoices = () => [bundledVoice, ...getJapaneseVoices()];
 let activeAudio: HTMLAudioElement | undefined;
 let audioContext: AudioContext | undefined;
+let playbackId = 0;
 export function stopAudio() {
+  playbackId++;
   if (isAndroid && nativeSpeech) void nativeSpeech.stop().catch(() => {});
   if ("speechSynthesis" in window) speechSynthesis.cancel();
   if (activeAudio) {
+    activeAudio.onended = null;
+    activeAudio.onerror = null;
     activeAudio.pause();
     activeAudio = undefined;
   }
@@ -50,37 +61,47 @@ export function playJapanese(
   onEnd?: () => void,
 ): boolean {
   stopAudio();
-  if (recordings[itemId]) {
-    activeAudio = new Audio(import.meta.env.BASE_URL + recordings[itemId]);
-    activeAudio.onended = () => onEnd?.();
-    activeAudio.onerror = () => {
-      window.dispatchEvent(
-        new CustomEvent("kana-audio-error", {
-          detail: "这段录音暂时无法播放。",
-        }),
-      );
+  const currentPlayback = playbackId;
+  const voices = getJapaneseVoices();
+  const recording = recordings[itemId];
+  const selectedDevice = voices.find((voice) => voice.voiceURI === voiceURI);
+  const playRecording = () => {
+    const audio = new Audio(import.meta.env.BASE_URL + recording);
+    activeAudio = audio;
+    let finished = false;
+    const finish = (message?: string) => {
+      if (finished || currentPlayback !== playbackId) return;
+      finished = true;
+      if (message)
+        window.dispatchEvent(
+          new CustomEvent("kana-audio-error", {
+            detail: message,
+          }),
+        );
       onEnd?.();
     };
-    void activeAudio.play().catch(() => {
-      window.dispatchEvent(
-        new CustomEvent("kana-audio-error", {
-          detail: "音频播放失败，请再点一次播放。",
-        }),
-      );
-      onEnd?.();
-    });
+    audio.onended = () => finish();
+    audio.onerror = () =>
+      finish("内置音频暂时无法读取，请更新游戏，或联网重新加载后再试。");
+    void audio.play().catch(() => finish("音频未能播放，请再点一次播放按钮。"));
+    if (!isNative && "caches" in window) {
+      // Media requests may be partial (206). Cache a complete response so the
+      // service worker can satisfy future offline range requests reliably.
+      void (async () => {
+        const cache = await caches.open("kotoba-audio-v1");
+        if (await cache.match(audio.src)) return;
+        const response = await fetch(audio.src);
+        if (response.ok && response.status === 200)
+          await cache.put(audio.src, response);
+      })().catch(() => {});
+    }
+  };
+  if (recording && !selectedDevice) {
+    playRecording();
     return true;
   }
-  const voices = getJapaneseVoices();
   if (!voices.length) return false;
-  const entry = entryById.get(itemId);
-  // Isolated words need their lesson's reading: e.g. 五月 is ごがつ here,
-  // and 一日 has separate entries for いちにち and ついたち.
-  // Keep full sentences intact so the voice can recognize particles and context.
-  const speechText =
-    entry && (entry.kind === "kanji" || entry.kind === "word")
-      ? entry.reading
-      : text;
+  const speechText = speechTextForItem(text, itemId);
   if (isAndroid && nativeSpeech) {
     const chosenVoice =
       voices.find((v) => v.voiceURI === voiceURI) || voices[0];
@@ -94,8 +115,15 @@ export function playJapanese(
         ),
         queueStrategy: 0,
       })
-      .then(() => onEnd?.())
+      .then(() => {
+        if (currentPlayback === playbackId) onEnd?.();
+      })
       .catch(() => {
+        if (currentPlayback !== playbackId) return;
+        if (recording) {
+          playRecording();
+          return;
+        }
         window.dispatchEvent(
           new CustomEvent("kana-audio-error", {
             detail: "设备日语朗读不可用，请检查系统文字转语音的日语语音包。",
@@ -109,8 +137,19 @@ export function playJapanese(
   utterance.lang = "ja-JP";
   utterance.voice = voices.find((v) => v.voiceURI === voiceURI) || voices[0];
   utterance.rate = 0.8;
-  utterance.onend = () => onEnd?.();
+  utterance.onend = () => {
+    if (currentPlayback === playbackId) onEnd?.();
+  };
   utterance.onerror = (event) => {
+    if (currentPlayback !== playbackId) return;
+    if (
+      event.error !== "canceled" &&
+      event.error !== "interrupted" &&
+      recording
+    ) {
+      playRecording();
+      return;
+    }
     if (event.error !== "canceled" && event.error !== "interrupted")
       window.dispatchEvent(
         new CustomEvent("kana-audio-error", {

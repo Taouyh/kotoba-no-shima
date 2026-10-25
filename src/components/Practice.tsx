@@ -414,7 +414,10 @@ function Round({
     };
     document.addEventListener("visibilitychange", pause);
     inputRef.current?.focus();
-    return () => document.removeEventListener("visibilitychange", pause);
+    return () => {
+      document.removeEventListener("visibilitychange", pause);
+      stopAudio();
+    };
   }, []);
   useEffect(() => {
     if (result) nextRef.current?.focus();
@@ -458,6 +461,10 @@ function Round({
     stopAudio();
     setResult(attempt);
     onAnswer(attempt);
+    if (attempt.correct && q.direction === "read" && progress.settings.sound) {
+      const text = q.kana?.glyph || q.entry?.term;
+      if (text) onSpeak(text, q.itemId);
+    }
   };
   const hint = () => {
     setHinted(true);
@@ -554,7 +561,7 @@ function Round({
       )}
       {q.direction === "listen" && (
         <p className="muted-note">
-          设备合成语音 · 用于辅助辨认，不能作为声调标准
+          日语合成参考音 · 用于辅助辨认，不能作为声调标准
           {!hasVoice && "；设备声音不可用，请返回后选择看字练习。"}
         </p>
       )}

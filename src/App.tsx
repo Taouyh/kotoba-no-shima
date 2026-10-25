@@ -73,7 +73,12 @@ import {
   removeUpgradeBackup,
   saveProgress,
 } from "./lib/storage";
-import { getJapaneseVoices, playJapanese, stopAudio } from "./lib/audio";
+import {
+  BUNDLED_VOICE_URI,
+  getAvailableVoices,
+  playJapanese,
+  stopAudio,
+} from "./lib/audio";
 import { isNative } from "./lib/platform";
 
 type Page =
@@ -138,7 +143,7 @@ export default function App() {
   }, [progress, loaded, storageError]);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30_000);
-    const updateVoices = () => setVoices(getJapaneseVoices());
+    const updateVoices = () => setVoices(getAvailableVoices());
     updateVoices();
     window.addEventListener("kana-voices-changed", updateVoices);
     if ("speechSynthesis" in window)
@@ -184,9 +189,7 @@ export default function App() {
   }, [toast]);
   const speak = (text: string, id: string) => {
     if (!playJapanese(text, id, progress.settings.voiceURI))
-      notify(
-        "没有可用的日语声音。可在系统中添加日语语音包，或先练习看字回忆。",
-      );
+      notify("这个内容暂时没有可用音频，请更新游戏后再试。");
   };
   const start = (
     chapter: ActiveSession["chapter"],
@@ -716,8 +719,8 @@ export default function App() {
               >
                 <Headphones size={17} />{" "}
                 {voices.length
-                  ? "听音辨认 · 设备合成语音"
-                  : "听音辨认 · 需要设备日语声音"}
+                  ? "听音辨认 · 日语参考音"
+                  : "听音辨认 · 音频准备中"}
               </button>
             )}
           </div>
@@ -1318,9 +1321,7 @@ function SettingsPage({
             <div>
               <b>日语参考声音</b>
               <p>
-                {voices.length
-                  ? `已发现 ${voices.length} 个设备日语声音。`
-                  : "设备暂未提供日语声音；文字练习不受影响。"}
+                游戏自带完整参考音频，无需安装系统语音包。设备声音可作为可选项。
               </p>
             </div>
             <select
@@ -1329,31 +1330,50 @@ function SettingsPage({
               value={progress.settings.voiceURI}
               onChange={(e) => changeSetting("voiceURI", e.target.value)}
             >
-              <option value="">
-                {voices.length ? "使用首个日语声音" : "没有日语声音"}
-              </option>
-              {voices.map((voice) => (
-                <option key={voice.voiceURI} value={voice.voiceURI}>
-                  {voice.name}
-                  {voice.localService ? " · 本地" : " · 在线"}
-                </option>
-              ))}
+              <option value="">内置日语音频（推荐）</option>
+              {voices
+                .filter((voice) => voice.voiceURI !== BUNDLED_VOICE_URI)
+                .map((voice) => (
+                  <option key={voice.voiceURI} value={voice.voiceURI}>
+                    {voice.name}
+                    {voice.localService ? " · 本地" : " · 在线"}
+                  </option>
+                ))}
             </select>
           </div>
           <button
             className="secondary-button"
             onClick={() => onSpeak("あいうえお", "voice-test")}
           >
-            <Volume2 size={17} /> 试听设备声音
+            <Volume2 size={17} /> 试听日语声音
           </button>
+          <div className="setting-row">
+            <div>
+              <b>答对后自动读音</b>
+              <p>看字回忆答对后，自动播放一次正确读音；也可以手动重听。</p>
+            </div>
+            <input
+              type="checkbox"
+              aria-label="答对后自动播放读音"
+              checked={progress.settings.sound}
+              onChange={(event) => changeSetting("sound", event.target.checked)}
+            />
+          </div>
           <div className="info-callout">
             <b>关于音频的说明</b>
             <p>
-              当前版本使用设备合成语音，辅助假名辨认；尚未内置经过逐条核对的真人录音，不能用它判定声调是否标准。部分声音需要联网。
+              内置合成参考音：VOICEVOX:四国めたん。安装版可直接离线播放；网页版首次播放需要联网，听过的音频会缓存。参考音不能作为声调判定标准。
             </p>
             <p>
-              没有声音时，可在系统语言设置中添加日语语音包，或换用提供日语声音的浏览器。高低音关卡使用明确标注的示意纯音。
+              高低音关卡使用明确标注的示意纯音。可选的设备声音是否需要联网，取决于设备。
             </p>
+            <a
+              href="https://zunko.jp/con_ongen_kiyaku.html"
+              target="_blank"
+              rel="noreferrer"
+            >
+              VOICEVOX 音源署名与使用说明
+            </a>
           </div>
         </section>
         <section className="panel settings-panel">
@@ -1431,9 +1451,9 @@ function SettingsPage({
           </h2>
           <p>
             {isNative
-              ? "页面和题库已随应用安装，可直接离线使用。设备朗读是否需要联网，取决于系统语音包。"
+              ? "页面、题库和完整参考音频已随应用安装，可直接离线使用。"
               : offlineReady
-                ? "页面与题库已准备好离线使用。设备朗读能否离线，取决于所选语音。"
+                ? "页面与题库已准备好离线使用。内置音频在首次联网播放后会缓存，之后可离线重听。"
                 : "正式构建首次联网打开后，页面和题库会自动缓存。开发预览中不启用离线缓存。"}
           </p>
           {isNative ? (

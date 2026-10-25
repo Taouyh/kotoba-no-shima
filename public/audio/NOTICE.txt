@@ -1,0 +1,20 @@
+Japanese reference audio for ことばの島
+
+Voice credit: VOICEVOX:四国めたん
+Style: Normal (style ID 2)
+Generated with VOICEVOX Core 0.17.1 / voice model 0.17.0.
+These are synthetic reference clips, not recordings of a Japanese teacher.
+
+Use of these generated clips is subject to the voice library terms. When
+redistributing or reusing them, retain the VOICEVOX:四国めたん credit and require
+downstream users to follow the voice library terms as well.
+
+Voice library terms:
+https://zunko.jp/con_ongen_kiyaku.html
+VOICEVOX model terms:
+https://github.com/VOICEVOX/voicevox_vvm
+VOICEVOX software terms:
+https://voicevox.hiroshiba.jp/term/
+
+Only generated MP3 clips are included in the game. The speech engine, voice
+models and Open JTalk dictionary are not distributed as game runtime files.
